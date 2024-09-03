@@ -2,6 +2,7 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { EtherscanApiService } from './etherscan-api/etherscan-api.service';
 import { generateDecrementingHexValues } from './lib/utils/subtract-hex';
 import { TransactionDTO } from './etherscan-api/types/transaction';
+import BigNumber from 'bignumber.js';
 @Injectable()
 export class AppService {
   // Number of previous blocks to search for getAddressWithMaxBalanceChange calculation
@@ -35,6 +36,24 @@ export class AppService {
       }),
     ).then((res) => res.flat());
 
+    const balanceChangeMap = this.calculateAddressChangeMap(transactions);
+
+    const { address } = Array.from(balanceChangeMap.entries()).reduce(
+      (acc, [address, change]) => {
+        if (change > acc.change) {
+          return { address, change };
+        }
+        return acc;
+      },
+      { address: '', change: new BigNumber(0)},
+    );
+
+    return address;
+  }
+
+  private calculateAddressChangeMap(
+    transactions: TransactionDTO[],
+  ): Map<string, BigNumber> {
     const balanceChangeMap = new Map();
 
     // Add up balance change for each address in transactions
@@ -45,16 +64,6 @@ export class AppService {
       balanceChangeMap.set(to, value.add(balanceChangeMap.get(to) ?? 0));
     });
 
-    const { address } = Array.from(balanceChangeMap.entries()).reduce(
-      (acc, [address, change]) => {
-        if (change > acc.change) {
-          return { address, change };
-        }
-        return acc;
-      },
-      { address: '', change: 0 },
-    );
-
-    return address;
+    return balanceChangeMap;
   }
 }
